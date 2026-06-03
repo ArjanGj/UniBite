@@ -296,10 +296,28 @@ body {
     height: 500px;
     background: white;
     border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #666;
+    overflow: hidden;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+.map-popup h3 {
+    color: #667eea;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.map-popup p {
+    margin-bottom: 0.25rem;
+    font-size: 0.85rem;
+    color: #333;
+}
+
+.map-popup button {
+    margin-top: 0.5rem;
 }
 
 /* My Listings View */
@@ -484,6 +502,10 @@ body {
     overflow-y: auto;
 }
 
+.modal-large {
+    max-width: 700px;
+}
+
 .modal-content h2 {
     color: #667eea;
     margin-bottom: 1.5rem;
@@ -529,6 +551,69 @@ body {
 
 .modal-content button[type="button"]:hover {
     background: #7f8c8d;
+}
+
+/* Location Section */
+.location-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #eee;
+}
+
+.location-section h3 {
+    color: #667eea;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.location-picker-map {
+    width: 100%;
+    height: 300px;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.map-hint {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 1rem;
+    font-style: italic;
+}
+
+.address-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.address-fields input {
+    grid-column: span 1;
+}
+
+.address-fields input:last-child {
+    grid-column: span 2;
+}
+
+.address-search {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.address-search input {
+    flex: 1;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.form-actions button {
+    flex: 1;
 }
 
 /* Rating Stars */

@@ -124,10 +124,59 @@ function renderFeed() {
     });
 }
 
-// Map rendering (placeholder for now)
+// Map rendering with Leaflet
+let map = null;
+let markers = [];
+
 function renderMap() {
     const mapContainer = document.getElementById('map');
-    mapContainer.innerHTML = '<p>Ο χάρτης θα υλοποιηθεί με Leaflet ή Google Maps</p>';
+    mapContainer.innerHTML = '';
+    
+    // Initialize map centered on Patras
+    map = L.map('map').setView([38.2466, 21.7344], 13);
+    
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    
+    // Get active listings
+    const { active } = cleanupExpiredListings();
+    
+    // Add markers for each listing
+    active.forEach(listing => {
+        const cook = getUserById(listing.cookId);
+        const avgRating = getAverageRating(listing.cookId);
+        
+        // Generate random coordinates around Patras for demo
+        // In a real app, these would be stored in the listing
+        const lat = 38.2466 + (Math.random() - 0.5) * 0.05;
+        const lng = 21.7344 + (Math.random() - 0.5) * 0.05;
+        
+        const marker = L.marker([lat, lng]).addTo(map);
+        
+        const popupContent = `
+            <div class="map-popup">
+                <h3>${listing.title}</h3>
+                <p><strong>Μάγειρας:</strong> ${cook.username}</p>
+                <p><strong>Μερίδες:</strong> ${listing.availablePortions}/${listing.portions}</p>
+                <p><strong>Τοποθεσία:</strong> ${listing.location}</p>
+                <p><strong>Ώρα:</strong> ${new Date(listing.pickupTime).toLocaleString('el-GR')}</p>
+                <p><strong>Βαθμολογία:</strong> ★ ${avgRating}</p>
+                ${listing.allergens ? `<p><strong>⚠️ Αλλεργιογόνα:</strong> ${listing.allergens}</p>` : ''}
+                <button onclick="requestPortion('${listing.id}')" class="btn-primary" style="margin-top: 10px; width: 100%;">Ζήτηση μερίδας</button>
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent);
+        markers.push(marker);
+    });
+    
+    // Fit map to show all markers
+    if (markers.length > 0) {
+        const group = new L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
 }
 
 // My Listings rendering
