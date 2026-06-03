@@ -66,10 +66,7 @@ function showView(viewName) {
 
 function showCreateListingModal() {
     document.getElementById('createListingModal').classList.remove('hidden');
-    // Initialize location picker map after modal is visible
-    setTimeout(() => {
-        initLocationPicker();
-    }, 100);
+    setTimeout(() => initLocationPicker(), 400);
 }
 
 function showRatingModal(requestId) {
@@ -170,90 +167,48 @@ function renderFeed() {
     });
 }
 
-// Map rendering with Google Maps
+// Map rendering with Leaflet
 let map = null;
 let markers = [];
 
 function renderMap() {
-    if (typeof google === 'undefined' || !google.maps) {
-        console.error('Google Maps API not loaded');
-        const mapContainer = document.getElementById('map');
-        mapContainer.innerHTML = '<p>Το Google Maps API δεν φορτώθηκε. Ελέγξτε το API key.</p>';
-        return;
-    }
+    initMainMap();
 
-    const mapContainer = document.getElementById('map');
-    mapContainer.innerHTML = '';
-    
-    // Clear existing markers
-    markers = [];
-    
-    // Initialize map centered on Patras
-    map = new google.maps.Map(document.getElementById('map'), {
-        center: { lat: 38.2466, lng: 21.7344 },
-        zoom: 13,
-        mapTypeId: 'roadmap'
-    });
-    
-    // Get active listings
     const { active } = cleanupExpiredListings();
-    
-    // Add markers for each listing
+
     active.forEach(listing => {
         const cook = getUserById(listing.cookId);
         const avgRating = getAverageRating(listing.cookId);
-        
-        // Use stored coordinates if available, otherwise use random for backward compatibility
+
         const lat = listing.lat || (38.2466 + (Math.random() - 0.5) * 0.05);
         const lng = listing.lng || (21.7344 + (Math.random() - 0.5) * 0.05);
-        
-        // Build location string
+
         let locationStr = listing.location;
         if (listing.address && listing.area) {
             locationStr = `${listing.address}, ${listing.area}`;
-            if (listing.postalCode) {
-                locationStr += `, ${listing.postalCode}`;
-            }
-            if (listing.location) {
-                locationStr += ` (${listing.location})`;
-            }
+            if (listing.postalCode) locationStr += `, ${listing.postalCode}`;
+            if (listing.location) locationStr += ` (${listing.location})`;
         }
-        
-        const infoWindow = new google.maps.InfoWindow({
-            content: `
-                <div class="map-popup">
-                    <h3>${listing.title}</h3>
-                    <p><strong>Μάγειρας:</strong> ${cook.username}</p>
-                    <p><strong>Μερίδες:</strong> ${listing.availablePortions}/${listing.portions}</p>
-                    <p><strong>Τοποθεσία:</strong> ${locationStr}</p>
-                    <p><strong>Ώρα:</strong> ${new Date(listing.pickupTime).toLocaleString('el-GR')}</p>
-                    <p><strong>Βαθμολογία:</strong> ★ ${avgRating}</p>
-                    ${listing.allergens ? `<p><strong>⚠️ Αλλεργιογόνα:</strong> ${listing.allergens}</p>` : ''}
-                    <button onclick="requestPortion('${listing.id}')" class="btn-primary" style="margin-top: 10px; width: 100%;">Ζήτηση μερίδας</button>
-                </div>
-            `
-        });
-        
-        const marker = new google.maps.Marker({
-            position: { lat, lng },
-            map: map,
-            title: listing.title
-        });
-        
-        marker.addListener('click', () => {
-            infoWindow.open(map, marker);
-        });
-        
-        markers.push(marker);
+
+        const marker = L.marker([lat, lng]).addTo(mainMap);
+        marker.bindPopup(`
+            <div class="map-popup">
+                <h3>${listing.title}</h3>
+                <p><strong>Μάγειρας:</strong> ${cook.username}</p>
+                <p><strong>Μερίδες:</strong> ${listing.availablePortions}/${listing.portions}</p>
+                <p><strong>Τοποθεσία:</strong> ${locationStr}</p>
+                <p><strong>Ώρα:</strong> ${new Date(listing.pickupTime).toLocaleString('el-GR')}</p>
+                <p><strong>Βαθμολογία:</strong> ★ ${avgRating}</p>
+                ${listing.allergens ? `<p><strong>⚠️ Αλλεργιογόνα:</strong> ${listing.allergens}</p>` : ''}
+                <button onclick="requestPortion('${listing.id}')" class="btn-primary" style="margin-top:10px;width:100%">Ζήτηση μερίδας</button>
+            </div>
+        `);
+        mainMarkers.push(marker);
     });
-    
-    // Fit map to show all markers
-    if (markers.length > 0) {
-        const bounds = new google.maps.LatLngBounds();
-        markers.forEach(marker => {
-            bounds.extend(marker.getPosition());
-        });
-        map.fitBounds(bounds);
+
+    if (mainMarkers.length > 0) {
+        const group = L.featureGroup(mainMarkers);
+        mainMap.fitBounds(group.getBounds());
     }
 }
 
