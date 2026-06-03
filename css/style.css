@@ -500,6 +500,15 @@ body {
     width: 90%;
     max-height: 90vh;
     overflow-y: auto;
+    overflow-x: visible;
+}
+
+.location-picker-map {
+    width: 100%;
+    height: 300px;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    z-index: 1;
 }
 
 .modal-large {
