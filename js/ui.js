@@ -36,6 +36,10 @@ function showView(viewName) {
 
 function showCreateListingModal() {
     document.getElementById('createListingModal').classList.remove('hidden');
+    // Initialize location picker map after modal is visible
+    setTimeout(() => {
+        initLocationPicker();
+    }, 100);
 }
 
 function showRatingModal(requestId) {
@@ -90,6 +94,18 @@ function renderFeed() {
         const avgRating = getAverageRating(listing.cookId);
         const isInactive = listing.status === 'inactive' || listing.availablePortions === 0;
         
+        // Build location string
+        let locationStr = listing.location;
+        if (listing.address && listing.area) {
+            locationStr = `${listing.address}, ${listing.area}`;
+            if (listing.postalCode) {
+                locationStr += `, ${listing.postalCode}`;
+            }
+            if (listing.location) {
+                locationStr += ` (${listing.location})`;
+            }
+        }
+        
         const card = document.createElement('div');
         card.className = `listing-card ${isInactive ? 'inactive' : ''}`;
         
@@ -104,7 +120,7 @@ function renderFeed() {
                 </div>
                 <div class="listing-meta">
                     <span class="listing-portions">${listing.availablePortions}/${listing.portions} μερίδες</span>
-                    <span>📍 ${listing.location}</span>
+                    <span>📍 ${locationStr}</span>
                 </div>
                 <div class="listing-meta">
                     <span>🕐 ${new Date(listing.pickupTime).toLocaleString('el-GR')}</span>
@@ -148,19 +164,30 @@ function renderMap() {
         const cook = getUserById(listing.cookId);
         const avgRating = getAverageRating(listing.cookId);
         
-        // Generate random coordinates around Patras for demo
-        // In a real app, these would be stored in the listing
-        const lat = 38.2466 + (Math.random() - 0.5) * 0.05;
-        const lng = 21.7344 + (Math.random() - 0.5) * 0.05;
+        // Use stored coordinates if available, otherwise use random for backward compatibility
+        const lat = listing.lat || (38.2466 + (Math.random() - 0.5) * 0.05);
+        const lng = listing.lng || (21.7344 + (Math.random() - 0.5) * 0.05);
         
         const marker = L.marker([lat, lng]).addTo(map);
+        
+        // Build location string
+        let locationStr = listing.location;
+        if (listing.address && listing.area) {
+            locationStr = `${listing.address}, ${listing.area}`;
+            if (listing.postalCode) {
+                locationStr += `, ${listing.postalCode}`;
+            }
+            if (listing.location) {
+                locationStr += ` (${listing.location})`;
+            }
+        }
         
         const popupContent = `
             <div class="map-popup">
                 <h3>${listing.title}</h3>
                 <p><strong>Μάγειρας:</strong> ${cook.username}</p>
                 <p><strong>Μερίδες:</strong> ${listing.availablePortions}/${listing.portions}</p>
-                <p><strong>Τοποθεσία:</strong> ${listing.location}</p>
+                <p><strong>Τοποθεσία:</strong> ${locationStr}</p>
                 <p><strong>Ώρα:</strong> ${new Date(listing.pickupTime).toLocaleString('el-GR')}</p>
                 <p><strong>Βαθμολογία:</strong> ★ ${avgRating}</p>
                 ${listing.allergens ? `<p><strong>⚠️ Αλλεργιογόνα:</strong> ${listing.allergens}</p>` : ''}
@@ -196,6 +223,18 @@ function renderMyListings() {
         const avgRating = getAverageRating(currentUser.id);
         const isInactive = listing.status === 'inactive' || listing.availablePortions === 0;
         
+        // Build location string
+        let locationStr = listing.location;
+        if (listing.address && listing.area) {
+            locationStr = `${listing.address}, ${listing.area}`;
+            if (listing.postalCode) {
+                locationStr += `, ${listing.postalCode}`;
+            }
+            if (listing.location) {
+                locationStr += ` (${listing.location})`;
+            }
+        }
+        
         const card = document.createElement('div');
         card.className = `listing-card ${isInactive ? 'inactive' : ''}`;
         
@@ -209,7 +248,7 @@ function renderMyListings() {
                     <span class="listing-rating">★ ${avgRating}</span>
                 </div>
                 <div class="listing-meta">
-                    <span>📍 ${listing.location}</span>
+                    <span>📍 ${locationStr}</span>
                     <span>🕐 ${new Date(listing.pickupTime).toLocaleString('el-GR')}</span>
                 </div>
                 <div class="listing-actions">

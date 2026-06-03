@@ -17,10 +17,22 @@ function handleCreateListing(event) {
         description: document.getElementById('listingDescription').value,
         portions: parseInt(document.getElementById('listingPortions').value),
         availablePortions: parseInt(document.getElementById('listingPortions').value),
-        location: document.getElementById('listingLocation').value,
+        location: document.getElementById('listingDetails').value,
         pickupTime: document.getElementById('listingPickupTime').value,
-        allergens: document.getElementById('listingAllergens').value
+        allergens: document.getElementById('listingAllergens').value,
+        // New location fields
+        address: document.getElementById('listingAddress').value,
+        postalCode: document.getElementById('listingPostalCode').value,
+        area: document.getElementById('listingArea').value,
+        lat: parseFloat(document.getElementById('listingLat').value),
+        lng: parseFloat(document.getElementById('listingLng').value)
     };
+
+    // Validate coordinates
+    if (isNaN(listingData.lat) || isNaN(listingData.lng)) {
+        alert('Παρακαλώ επιλέξτε τοποθεσία στον χάρτη');
+        return;
+    }
 
     createListing(listingData);
     
