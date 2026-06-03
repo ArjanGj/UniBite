@@ -1,5 +1,35 @@
 // UI Functions
 
+// Photo upload functions
+function previewPhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+        alert('Η φωτογραφία δεν πρέπει να ξεπερνά τα 2MB');
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('photoPreviewImg').src = e.target.result;
+        document.getElementById('photoPreview').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+}
+
+function removePhoto() {
+    document.getElementById('listingPhoto').value = '';
+    document.getElementById('photoPreviewImg').src = '';
+    document.getElementById('photoPreview').classList.add('hidden');
+}
+
+function getPhotoBase64() {
+    const img = document.getElementById('photoPreviewImg');
+    return img.src && img.src !== window.location.href ? img.src : null;
+}
+
 function showView(viewName) {
     // Hide all views
     const views = document.querySelectorAll('.view');
@@ -110,7 +140,7 @@ function renderFeed() {
         card.className = `listing-card ${isInactive ? 'inactive' : ''}`;
         
         card.innerHTML = `
-            <div class="listing-image">🍽️</div>
+            <div class="listing-image">${listing.photo ? `<img src="${listing.photo}" alt="${listing.title}" style="width:100%;height:100%;object-fit:cover">` : '🍽️'}</div>
             <div class="listing-content">
                 <h3 class="listing-title">${listing.title}</h3>
                 <p class="listing-description">${listing.description}</p>
@@ -140,46 +170,90 @@ function renderFeed() {
     });
 }
 
-// Map rendering with Leaflet
+// Map rendering with Google Maps
+let map = null;
+let markers = [];
+
 function renderMap() {
-    initMainMap();
+    if (typeof google === 'undefined' || !google.maps) {
+        console.error('Google Maps API not loaded');
+        const mapContainer = document.getElementById('map');
+        mapContainer.innerHTML = '<p>Το Google Maps API δεν φορτώθηκε. Ελέγξτε το API key.</p>';
+        return;
+    }
 
+    const mapContainer = document.getElementById('map');
+    mapContainer.innerHTML = '';
+    
+    // Clear existing markers
+    markers = [];
+    
+    // Initialize map centered on Patras
+    map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 38.2466, lng: 21.7344 },
+        zoom: 13,
+        mapTypeId: 'roadmap'
+    });
+    
+    // Get active listings
     const { active } = cleanupExpiredListings();
-
+    
+    // Add markers for each listing
     active.forEach(listing => {
         const cook = getUserById(listing.cookId);
         const avgRating = getAverageRating(listing.cookId);
-
+        
+        // Use stored coordinates if available, otherwise use random for backward compatibility
         const lat = listing.lat || (38.2466 + (Math.random() - 0.5) * 0.05);
         const lng = listing.lng || (21.7344 + (Math.random() - 0.5) * 0.05);
-
+        
+        // Build location string
         let locationStr = listing.location;
         if (listing.address && listing.area) {
             locationStr = `${listing.address}, ${listing.area}`;
-            if (listing.postalCode) locationStr += `, ${listing.postalCode}`;
-            if (listing.location) locationStr += ` (${listing.location})`;
+            if (listing.postalCode) {
+                locationStr += `, ${listing.postalCode}`;
+            }
+            if (listing.location) {
+                locationStr += ` (${listing.location})`;
+            }
         }
-
-        const marker = L.marker([lat, lng]).addTo(mainMap);
-        marker.bindPopup(`
-            <div class="map-popup">
-                <h3>${listing.title}</h3>
-                <p><strong>Μάγειρας:</strong> ${cook.username}</p>
-                <p><strong>Μερίδες:</strong> ${listing.availablePortions}/${listing.portions}</p>
-                <p><strong>Τοποθεσία:</strong> ${locationStr}</p>
-                <p><strong>Ώρα:</strong> ${new Date(listing.pickupTime).toLocaleString('el-GR')}</p>
-                <p><strong>Βαθμολογία:</strong> ★ ${avgRating}</p>
-                ${listing.allergens ? `<p><strong>⚠️ Αλλεργιογόνα:</strong> ${listing.allergens}</p>` : ''}
-                <button onclick="requestPortion('${listing.id}')" class="btn-primary" style="margin-top:10px;width:100%">Ζήτηση μερίδας</button>
-            </div>
-        `);
-        mainMarkers.push(marker);
+        
+        const infoWindow = new google.maps.InfoWindow({
+            content: `
+                <div class="map-popup">
+                    <h3>${listing.title}</h3>
+                    <p><strong>Μάγειρας:</strong> ${cook.username}</p>
+                    <p><strong>Μερίδες:</strong> ${listing.availablePortions}/${listing.portions}</p>
+                    <p><strong>Τοποθεσία:</strong> ${locationStr}</p>
+                    <p><strong>Ώρα:</strong> ${new Date(listing.pickupTime).toLocaleString('el-GR')}</p>
+                    <p><strong>Βαθμολογία:</strong> ★ ${avgRating}</p>
+                    ${listing.allergens ? `<p><strong>⚠️ Αλλεργιογόνα:</strong> ${listing.allergens}</p>` : ''}
+                    <button onclick="requestPortion('${listing.id}')" class="btn-primary" style="margin-top: 10px; width: 100%;">Ζήτηση μερίδας</button>
+                </div>
+            `
+        });
+        
+        const marker = new google.maps.Marker({
+            position: { lat, lng },
+            map: map,
+            title: listing.title
+        });
+        
+        marker.addListener('click', () => {
+            infoWindow.open(map, marker);
+        });
+        
+        markers.push(marker);
     });
-
-    // Fit map to markers
-    if (mainMarkers.length > 0) {
-        const group = L.featureGroup(mainMarkers);
-        mainMap.fitBounds(group.getBounds());
+    
+    // Fit map to show all markers
+    if (markers.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        markers.forEach(marker => {
+            bounds.extend(marker.getPosition());
+        });
+        map.fitBounds(bounds);
     }
 }
 

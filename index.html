@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UniBite - Διαμοιρασμός Φαγητού</title>
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap&libraries=places"></script>
 </head>
 <body>
     <div id="app">
@@ -75,7 +74,7 @@
         <!-- Map View -->
         <div id="mapView" class="view hidden">
             <h2>Χάρτης Αγγελιών</h2>
-            <div id="map" class="map-container"></div>
+            <div id="map" class="map-container" style="height:500px"></div>
         </div>
 
         <!-- My Listings View -->
@@ -140,6 +139,16 @@
                     <input type="number" id="listingPortions" placeholder="Αριθμός μερίδων" min="1" required>
                     <input type="datetime-local" id="listingPickupTime" required>
                     <input type="text" id="listingAllergens" placeholder="Αλλεργιογόνα (προαιρετικό)">
+                    
+                    <!-- Photo Upload -->
+                    <div class="photo-upload-section">
+                        <label for="listingPhoto">📷 Φωτογραφία φαγητού (προαιρετικό)</label>
+                        <input type="file" id="listingPhoto" accept="image/*" onchange="previewPhoto(event)">
+                        <div id="photoPreview" class="photo-preview hidden">
+                            <img id="photoPreviewImg" src="" alt="Preview">
+                            <button type="button" onclick="removePhoto()" class="btn-secondary">✕ Αφαίρεση</button>
+                        </div>
+                    </div>
                     
                     <!-- Location Section -->
                     <div class="location-section">

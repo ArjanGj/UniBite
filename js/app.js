@@ -20,6 +20,7 @@ function handleCreateListing(event) {
         location: document.getElementById('listingDetails').value,
         pickupTime: document.getElementById('listingPickupTime').value,
         allergens: document.getElementById('listingAllergens').value,
+        photo: getPhotoBase64(),
         // New location fields
         address: document.getElementById('listingAddress').value,
         postalCode: document.getElementById('listingPostalCode').value,
