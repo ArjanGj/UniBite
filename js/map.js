@@ -1,152 +1,149 @@
-// Map functionality for location picker using Google Maps
+// Map functionality using Leaflet (free, no API key needed)
 
 let locationPickerMap = null;
 let locationMarker = null;
 let mainMap = null;
 let mainMarkers = [];
 
-// Global init function called by Google Maps API
-function initMap() {
-    console.log('Google Maps API loaded');
-}
-
-// Initialize location picker map
+// Initialize location picker map (used in modal)
 function initLocationPicker() {
-    if (typeof google === 'undefined' || !google.maps) {
-        console.error('Google Maps API not loaded');
-        alert('Το Google Maps API δεν φορτώθηκε. Ελέγξτε το API key.');
-        return;
-    }
+    const container = document.getElementById('locationPickerMap');
+    if (!container) return;
 
+    // If map already exists, remove it first
     if (locationPickerMap) {
-        // Clear existing map
-        document.getElementById('locationPickerMap').innerHTML = '';
+        locationPickerMap.remove();
+        locationPickerMap = null;
     }
 
-    // Initialize map centered on Patras
-    locationPickerMap = new google.maps.Map(document.getElementById('locationPickerMap'), {
-        center: { lat: 38.2466, lng: 21.7344 },
-        zoom: 13,
-        mapTypeId: 'roadmap'
+    // Center on Patras
+    locationPickerMap = L.map('locationPickerMap').setView([38.2466, 21.7344], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(locationPickerMap);
+
+    // Draggable marker
+    locationMarker = L.marker([38.2466, 21.7344], { draggable: true }).addTo(locationPickerMap);
+
+    // Click on map moves marker
+    locationPickerMap.on('click', function(e) {
+        const { lat, lng } = e.latlng;
+        locationMarker.setLatLng([lat, lng]);
+        reverseGeocode(lat, lng);
     });
-    
-    // Add draggable marker
-    locationMarker = new google.maps.Marker({
-        position: { lat: 38.2466, lng: 21.7344 },
-        map: locationPickerMap,
-        draggable: true,
-        title: 'Τοποθεσία παράδοσης'
+
+    // Drag marker
+    locationMarker.on('dragend', function() {
+        const { lat, lng } = locationMarker.getLatLng();
+        reverseGeocode(lat, lng);
     });
-    
-    // Event listeners
-    locationPickerMap.addListener('click', onMapClick);
-    locationMarker.addListener('dragend', onMarkerDrag);
-    
-    // Initial reverse geocoding
+
+    // Initial reverse geocode
     reverseGeocode(38.2466, 21.7344);
+
+    // Fix Leaflet map size inside modal
+    setTimeout(() => locationPickerMap.invalidateSize(), 300);
 }
 
-// Handle map click
-function onMapClick(e) {
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    locationMarker.setPosition({ lat, lng });
-    reverseGeocode(lat, lng);
-}
+// Initialize main map (feed/map view)
+function initMainMap() {
+    const container = document.getElementById('map');
+    if (!container) return;
 
-// Handle marker drag
-function onMarkerDrag(e) {
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    reverseGeocode(lat, lng);
-}
-
-// Reverse geocoding - get address from coordinates using Google Maps Geocoding API
-function reverseGeocode(lat, lng) {
-    if (typeof google === 'undefined' || !google.maps) {
-        console.error('Google Maps API not loaded');
-        return;
+    if (mainMap) {
+        mainMap.remove();
+        mainMap = null;
     }
 
-    const geocoder = new google.maps.Geocoder();
-    const latlng = { lat: lat, lng: lng };
+    mainMap = L.map('map').setView([38.2466, 21.7344], 13);
 
-    geocoder.geocode({ location: latlng }, (results, status) => {
-        if (status === 'OK' && results[0]) {
-            const addressComponents = results[0].address_components;
-            
-            // Extract address components
-            let street = '';
-            let postalCode = '';
-            let area = '';
-            
-            addressComponents.forEach(component => {
-                if (component.types.includes('route')) {
-                    street = component.long_name;
-                } else if (component.types.includes('postal_code')) {
-                    postalCode = component.long_name;
-                } else if (component.types.includes('locality') || component.types.includes('administrative_area_level_3')) {
-                    area = component.long_name;
-                }
-            });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(mainMap);
 
-            // Fill address fields
-            document.getElementById('listingAddress').value = street || results[0].formatted_address.split(',')[0] || '';
-            document.getElementById('listingPostalCode').value = postalCode || '';
-            document.getElementById('listingArea').value = area || 'Πάτρα';
-            
-            // Store coordinates
-            document.getElementById('listingLat').value = lat;
-            document.getElementById('listingLng').value = lng;
-        } else {
-            console.error('Reverse geocoding failed:', status);
-        }
+    // Add markers for existing listings
+    renderMapMarkers();
+
+    setTimeout(() => mainMap.invalidateSize(), 300);
+}
+
+// Render listing markers on main map
+function renderMapMarkers() {
+    if (!mainMap) return;
+
+    // Remove old markers
+    mainMarkers.forEach(m => m.remove());
+    mainMarkers = [];
+
+    const listings = getListings ? getListings() : [];
+    listings.forEach(listing => {
+        if (!listing.active) return;
+        const lat = parseFloat(listing.lat);
+        const lng = parseFloat(listing.lng);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const marker = L.marker([lat, lng]).addTo(mainMap);
+        marker.bindPopup(`
+            <div class="map-popup">
+                <h3>${listing.title}</h3>
+                <p>👨‍🍳 ${listing.cookName}</p>
+                <p>🍽️ ${listing.portions} μερίδες</p>
+                <p>📍 ${listing.address || ''}</p>
+                <button onclick="requestListing('${listing.id}')" class="btn-primary" style="width:100%;margin-top:8px">Αίτημα</button>
+            </div>
+        `);
+        mainMarkers.push(marker);
     });
 }
 
-// Forward geocoding - get coordinates from address using Google Maps Places Autocomplete
+// Reverse geocoding using OpenStreetMap Nominatim (free)
+function reverseGeocode(lat, lng) {
+    document.getElementById('listingLat').value = lat;
+    document.getElementById('listingLng').value = lng;
+
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=el`)
+        .then(res => res.json())
+        .then(data => {
+            const addr = data.address || {};
+            const street = (addr.road || '') + (addr.house_number ? ' ' + addr.house_number : '');
+            const postal = addr.postcode || '';
+            const area = addr.city || addr.town || addr.village || addr.suburb || 'Πάτρα';
+
+            document.getElementById('listingAddress').value = street;
+            document.getElementById('listingPostalCode').value = postal;
+            document.getElementById('listingArea').value = area;
+        })
+        .catch(err => console.error('Reverse geocoding error:', err));
+}
+
+// Forward geocoding - search address
 function searchAddress() {
     const address = document.getElementById('addressSearchInput').value;
-    
     if (!address) {
         alert('Παρακαλώ εισάγετε διεύθυνση');
         return;
     }
 
-    if (typeof google === 'undefined' || !google.maps) {
-        console.error('Google Maps API not loaded');
-        return;
-    }
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Πάτρα, Ελλάδα')}&limit=1&accept-language=el`)
+        .then(res => res.json())
+        .then(results => {
+            if (results && results.length > 0) {
+                const lat = parseFloat(results[0].lat);
+                const lng = parseFloat(results[0].lon);
 
-    const geocoder = new google.maps.Geocoder();
-
-    geocoder.geocode({ address: address + ', Πάτρα, Ελλάδα' }, (results, status) => {
-        if (status === 'OK' && results[0]) {
-            const location = results[0].geometry.location;
-            const lat = location.lat();
-            const lng = location.lng();
-            
-            // Move marker to new location
-            locationMarker.setPosition({ lat, lng });
-            locationPickerMap.setCenter({ lat, lng });
-            locationPickerMap.setZoom(15);
-            
-            // Fill address fields from result
-            reverseGeocode(lat, lng);
-        } else {
-            alert('Δεν βρέθηκε η διεύθυνση. Προσπαθήστε με πιο συγκεκριμένη περιγραφή.');
-        }
-    });
+                locationMarker.setLatLng([lat, lng]);
+                locationPickerMap.setView([lat, lng], 16);
+                reverseGeocode(lat, lng);
+            } else {
+                alert('Δεν βρέθηκε η διεύθυνση. Δοκιμάστε πιο συγκεκριμένη περιγραφή.');
+            }
+        })
+        .catch(err => {
+            console.error('Search error:', err);
+            alert('Σφάλμα αναζήτησης. Δοκιμάστε ξανά.');
+        });
 }
 
-// Update marker position from manual address field changes
-function updateMarkerFromAddress() {
-    const lat = parseFloat(document.getElementById('listingLat').value);
-    const lng = parseFloat(document.getElementById('listingLng').value);
-    
-    if (!isNaN(lat) && !isNaN(lng) && locationMarker) {
-        locationMarker.setPosition({ lat, lng });
-        locationPickerMap.setCenter({ lat, lng });
-        locationPickerMap.setZoom(15);
-    }
-}
+// Called by Google Maps (no-op, kept for compatibility)
+function initMap() {}
