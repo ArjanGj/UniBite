@@ -42,8 +42,12 @@ function initLocationPicker() {
     // Initial reverse geocode
     reverseGeocode(38.2466, 21.7344);
 
-    // Fix Leaflet map size inside modal
-    setTimeout(() => locationPickerMap.invalidateSize(), 300);
+    // Fix Leaflet map size inside modal - needs longer delay
+    setTimeout(() => {
+        locationPickerMap.invalidateSize();
+        locationPickerMap.setView([38.2466, 21.7344], 13);
+    }, 500);
+    setTimeout(() => locationPickerMap.invalidateSize(), 1000);
 }
 
 // Initialize main map (feed/map view)
