@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniBite - Διαμοιρασμός Φαγητού</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-brand">UniBite</div>
+            <div class="nav-menu" id="navMenu">
+                <button class="nav-btn" onclick="showView('feed')">Feed</button>
+                <button class="nav-btn" onclick="showView('map')">Χάρτης</button>
+                <button class="nav-btn" onclick="showView('my-listings')">Οι Αγγελίες Μου</button>
+                <button class="nav-btn" onclick="showView('requests')">Αιτήματα</button>
+                <button class="nav-btn" onclick="showView('profile')">Προφίλ</button>
+                <button class="nav-btn admin-only" onclick="showView('admin')">Admin</button>
+                <button class="nav-btn logout" onclick="logout()">Αποσύνδεση</button>
+            </div>
+        </nav>
+
+        <!-- Login/Register View -->
+        <div id="authView" class="view">
+            <div class="auth-container">
+                <h1>UniBite</h1>
+                <p>Διαμοιρασμός φαγητού μεταξύ φοιτητών</p>
+                
+                <div class="auth-tabs">
+                    <button class="auth-tab active" onclick="showAuthTab('login')">Σύνδεση</button>
+                    <button class="auth-tab" onclick="showAuthTab('register')">Εγγραφή</button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)">
+                    <input type="text" id="loginUsername" placeholder="Όνομα χρήστη" required>
+                    <input type="password" id="loginPassword" placeholder="Κωδικός" required>
+                    <button type="submit">Σύνδεση</button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="registerForm" class="auth-form hidden" onsubmit="handleRegister(event)">
+                    <input type="text" id="regUsername" placeholder="Όνομα χρήστη" required>
+                    <input type="email" id="regEmail" placeholder="Email" required>
+                    <input type="password" id="regPassword" placeholder="Κωδικός" required>
+                    <select id="regRole" required>
+                        <option value="consumer">Καταναλωτής</option>
+                        <option value="cook">Μάγειρας</option>
+                        <option value="admin">Διαχειριστής</option>
+                    </select>
+                    <button type="submit">Εγγραφή</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Feed View -->
+        <div id="feedView" class="view hidden">
+            <div class="feed-header">
+                <h2>Διαθέσιμες Μερίδες</h2>
+                <div class="feed-filters">
+                    <select id="sortFilter" onchange="renderFeed()">
+                        <option value="newest">Νεότερα</option>
+                        <option value="distance">Απόσταση</option>
+                        <option value="rating">Βαθμολογία</option>
+                    </select>
+                </div>
+            </div>
+            <div id="feedList" class="feed-list"></div>
+        </div>
+
+        <!-- Map View -->
+        <div id="mapView" class="view hidden">
+            <h2>Χάρτης Αγγελιών</h2>
+            <div id="map" class="map-container"></div>
+        </div>
+
+        <!-- My Listings View -->
+        <div id="my-listingsView" class="view hidden">
+            <div class="page-header">
+                <h2>Οι Αγγελίες Μου</h2>
+                <button class="btn-primary" onclick="showCreateListingModal()">+ Νέα Αγγελία</button>
+            </div>
+            <div id="myListings" class="listings-grid"></div>
+        </div>
+
+        <!-- Requests View -->
+        <div id="requestsView" class="view hidden">
+            <h2>Διαχείριση Αιτημάτων</h2>
+            <div id="requestsList" class="requests-list"></div>
+        </div>
+
+        <!-- Profile View -->
+        <div id="profileView" class="view hidden">
+            <div class="profile-container">
+                <h2>Το Προφίλ Μου</h2>
+                <div class="profile-info">
+                    <p><strong>Όνομα:</strong> <span id="profileName"></span></p>
+                    <p><strong>Ρόλος:</strong> <span id="profileRole"></span></p>
+                    <p><strong>Πόντοι:</strong> <span id="profilePoints"></span></p>
+                </div>
+                <div class="profile-stats">
+                    <h3>Στατιστικά</h3>
+                    <p>Μερίδες που προσέφερα: <span id="offeredCount">0</span></p>
+                    <p>Μερίδες που παρέλαβα: <span id="receivedCount">0</span></p>
+                    <p>Μέση βαθμολογία: <span id="avgRating">0</span>/5</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin View -->
+        <div id="adminView" class="view hidden">
+            <h2>Admin Dashboard</h2>
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <h3>Μερίδες τον τελευταίο μήνα</h3>
+                    <p id="monthlyPortions">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Top Donor</h3>
+                    <p id="topDonor">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Υψηλότερη βαθμολογία</h3>
+                    <p id="topRatedMeal">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Listing Modal -->
+        <div id="createListingModal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Δημιουργία Αγγελίας</h2>
+                <form id="createListingForm" onsubmit="handleCreateListing(event)">
+                    <input type="text" id="listingTitle" placeholder="Τίτλος" required>
+                    <textarea id="listingDescription" placeholder="Περιγραφή" required></textarea>
+                    <input type="number" id="listingPortions" placeholder="Αριθμός μερίδων" min="1" required>
+                    <input type="text" id="listingLocation" placeholder="Σημείο παράδοσης (π.χ. Κτίριο Α, Δωμάτιο 101)" required>
+                    <input type="datetime-local" id="listingPickupTime" required>
+                    <input type="text" id="listingAllergens" placeholder="Αλλεργιογόνα (προαιρετικό)">
+                    <button type="submit">Δημιουργία</button>
+                    <button type="button" onclick="closeModal('createListingModal')">Ακύρωση</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Rating Modal -->
+        <div id="ratingModal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Αξιολόγηση Μερίδας</h2>
+                <form id="ratingForm" onsubmit="handleRating(event)">
+                    <input type="hidden" id="ratingRequestId">
+                    <div class="rating-stars">
+                        <span class="star" onclick="setRating(1)">★</span>
+                        <span class="star" onclick="setRating(2)">★</span>
+                        <span class="star" onclick="setRating(3)">★</span>
+                        <span class="star" onclick="setRating(4)">★</span>
+                        <span class="star" onclick="setRating(5)">★</span>
+                    </div>
+                    <input type="hidden" id="ratingValue" required>
+                    <textarea id="ratingComment" placeholder="Σχόλιο (προαιρετικό)"></textarea>
+                    <button type="submit">Υποβολή</button>
+                    <button type="button" onclick="closeModal('ratingModal')">Ακύρωση</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/data.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
