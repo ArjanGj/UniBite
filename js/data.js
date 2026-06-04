@@ -1,349 +1,210 @@
-// Data Management using localStorage
+// Data Management using Fetch API
 
-const DB_KEYS = {
-    USERS: 'unibite_users',
-    LISTINGS: 'unibite_listings',
-    REQUESTS: 'unibite_requests',
-    RATINGS: 'unibite_ratings',
-    CURRENT_USER: 'unibite_current_user'
-};
+const API_URL = 'http://localhost:3000/api'; // Προσαρμόστε αυτό το URL ανάλογα με τον server σας
+const SESSION_KEY = 'unibite_current_user';
 
-// Initialize database with default data
-function initializeDatabase() {
-    if (!localStorage.getItem(DB_KEYS.USERS)) {
-        const defaultUsers = [
-            {
-                id: 'admin1',
-                username: 'admin',
-                email: 'admin@unibite.com',
-                password: 'admin123',
-                role: 'admin',
-                points: 0,
-                offeredPortions: 0,
-                receivedPortions: 0,
-                createdAt: new Date().toISOString()
-            },
-            {
-                id: 'cook1',
-                username: 'chef',
-                email: 'chef@unibite.com',
-                password: 'chef123',
-                role: 'cook',
-                points: 5,
-                offeredPortions: 0,
-                receivedPortions: 0,
-                createdAt: new Date().toISOString()
-            },
-            {
-                id: 'consumer1',
-                username: 'student',
-                email: 'student@unibite.com',
-                password: 'student123',
-                role: 'consumer',
-                points: 5,
-                offeredPortions: 0,
-                receivedPortions: 0,
-                createdAt: new Date().toISOString()
+// Helper function for API calls
+async function fetchAPI(endpoint, options = {}) {
+    const defaultHeaders = {
+        'Content-Type': 'application/json',
+    };
+    
+    // Προσθήκη Authorization token αν υπάρχει στο session
+    const currentUser = getCurrentUser();
+    if (currentUser && currentUser.token) {
+        defaultHeaders['Authorization'] = `Bearer ${currentUser.token}`;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                ...defaultHeaders,
+                ...options.headers
             }
-        ];
-        localStorage.setItem(DB_KEYS.USERS, JSON.stringify(defaultUsers));
+        });
+
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        }
+        
+        // Αν η απάντηση είναι κενή, επιστρέφουμε null
+        if (response.status === 204) return null;
+        
+        return await response.json();
+    } catch (error) {
+        console.error(`Error in fetchAPI for ${endpoint}:`, error);
+        throw error;
     }
-
-    if (!localStorage.getItem(DB_KEYS.LISTINGS)) {
-        localStorage.setItem(DB_KEYS.LISTINGS, JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem(DB_KEYS.REQUESTS)) {
-        localStorage.setItem(DB_KEYS.REQUESTS, JSON.stringify([]));
-    }
-
-    if (!localStorage.getItem(DB_KEYS.RATINGS)) {
-        localStorage.setItem(DB_KEYS.RATINGS, JSON.stringify([]));
-    }
-}
-
-// Generic CRUD operations
-function getData(key) {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
-}
-
-function setData(key, data) {
-    localStorage.setItem(key, JSON.stringify(data));
 }
 
 // User operations
-function getUsers() {
-    return getData(DB_KEYS.USERS);
+async function getUsers() {
+    return fetchAPI('/users');
 }
 
-function getUserById(id) {
-    const users = getUsers();
-    return users.find(u => u.id === id);
+async function getUserById(id) {
+    return fetchAPI(`/users/${id}`);
 }
 
-function getUserByUsername(username) {
-    const users = getUsers();
+async function getUserByUsername(username) {
+    const users = await getUsers();
     return users.find(u => u.username === username);
 }
 
-function createUser(userData) {
-    const users = getUsers();
-    const newUser = {
-        id: 'user_' + Date.now(),
-        ...userData,
-        points: 5, // New users start with 5 points
-        offeredPortions: 0,
-        receivedPortions: 0,
-        createdAt: new Date().toISOString()
-    };
-    users.push(newUser);
-    setData(DB_KEYS.USERS, users);
-    return newUser;
+async function createUser(userData) {
+    return fetchAPI('/users', {
+        method: 'POST',
+        body: JSON.stringify(userData)
+    });
 }
 
-function updateUser(userId, updates) {
-    const users = getUsers();
-    const index = users.findIndex(u => u.id === userId);
-    if (index !== -1) {
-        users[index] = { ...users[index], ...updates };
-        setData(DB_KEYS.USERS, users);
-        return users[index];
-    }
-    return null;
+async function updateUser(userId, updates) {
+    return fetchAPI(`/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+    });
 }
 
 // Listing operations
-function getListings() {
-    return getData(DB_KEYS.LISTINGS);
+async function getListings() {
+    return fetchAPI('/listings');
 }
 
-function getListingById(id) {
-    const listings = getListings();
-    return listings.find(l => l.id === id);
+async function getListingById(id) {
+    return fetchAPI(`/listings/${id}`);
 }
 
-function getListingsByCook(cookId) {
-    const listings = getListings();
+async function getListingsByCook(cookId) {
+    const listings = await getListings();
     return listings.filter(l => l.cookId === cookId);
 }
 
-function createListing(listingData) {
-    const listings = getListings();
-    const newListing = {
-        id: 'listing_' + Date.now(),
-        ...listingData,
-        createdAt: new Date().toISOString(),
-        status: 'active'
-    };
-    listings.push(newListing);
-    setData(DB_KEYS.LISTINGS, listings);
-    return newListing;
+async function createListing(listingData) {
+    return fetchAPI('/listings', {
+        method: 'POST',
+        body: JSON.stringify(listingData)
+    });
 }
 
-function updateListing(listingId, updates) {
-    const listings = getListings();
-    const index = listings.findIndex(l => l.id === listingId);
-    if (index !== -1) {
-        listings[index] = { ...listings[index], ...updates };
-        setData(DB_KEYS.LISTINGS, listings);
-        return listings[index];
-    }
-    return null;
+async function updateListing(listingId, updates) {
+    return fetchAPI(`/listings/${listingId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+    });
 }
 
-function deleteListing(listingId) {
-    const listings = getListings();
-    const filtered = listings.filter(l => l.id !== listingId);
-    setData(DB_KEYS.LISTINGS, filtered);
+async function deleteListing(listingId) {
+    return fetchAPI(`/listings/${listingId}`, {
+        method: 'DELETE'
+    });
 }
 
-// Clean up expired listings (older than 48 hours)
-function cleanupExpiredListings() {
-    const listings = getListings();
-    const now = new Date();
-    const activeListings = listings.filter(l => {
-        const createdAt = new Date(l.createdAt);
-        const hoursSinceCreation = (now - createdAt) / (1000 * 60 * 60);
-        return hoursSinceCreation < 48 && l.availablePortions > 0;
-    });
-    
-    const inactiveListings = listings.filter(l => {
-        const createdAt = new Date(l.createdAt);
-        const hoursSinceCreation = (now - createdAt) / (1000 * 60 * 60);
-        return hoursSinceCreation >= 48 || l.availablePortions <= 0;
-    });
-
-    // Update status
-    inactiveListings.forEach(l => {
-        updateListing(l.id, { status: 'inactive' });
-    });
-
-    return { active: activeListings, inactive: inactiveListings };
+async function cleanupExpiredListings() {
+    return fetchAPI('/listings/cleanup', { method: 'POST' });
 }
 
 // Request operations
-function getRequests() {
-    return getData(DB_KEYS.REQUESTS);
+async function getRequests() {
+    return fetchAPI('/requests');
 }
 
-function getRequestsByCook(cookId) {
-    const requests = getRequests();
+async function getRequestsByCook(cookId) {
+    const requests = await getRequests();
     return requests.filter(r => r.cookId === cookId);
 }
 
-function getRequestsByConsumer(consumerId) {
-    const requests = getRequests();
+async function getRequestsByConsumer(consumerId) {
+    const requests = await getRequests();
     return requests.filter(r => r.consumerId === consumerId);
 }
 
-function getRequestsByListing(listingId) {
-    const requests = getRequests();
+async function getRequestsByListing(listingId) {
+    const requests = await getRequests();
     return requests.filter(r => r.listingId === listingId);
 }
 
-function createRequest(requestData) {
-    const requests = getRequests();
-    const newRequest = {
-        id: 'request_' + Date.now(),
-        ...requestData,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-    };
-    requests.push(newRequest);
-    setData(DB_KEYS.REQUESTS, requests);
-    return newRequest;
+async function createRequest(requestData) {
+    return fetchAPI('/requests', {
+        method: 'POST',
+        body: JSON.stringify(requestData)
+    });
 }
 
-function updateRequest(requestId, updates) {
-    const requests = getRequests();
-    const index = requests.findIndex(r => r.id === requestId);
-    if (index !== -1) {
-        requests[index] = { ...requests[index], ...updates };
-        setData(DB_KEYS.REQUESTS, requests);
-        return requests[index];
-    }
-    return null;
+async function updateRequest(requestId, updates) {
+    return fetchAPI(`/requests/${requestId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+    });
 }
 
 // Rating operations
-function getRatings() {
-    return getData(DB_KEYS.RATINGS);
+async function getRatings() {
+    return fetchAPI('/ratings');
 }
 
-function getRatingsByCook(cookId) {
-    const ratings = getRatings();
+async function getRatingsByCook(cookId) {
+    const ratings = await getRatings();
     return ratings.filter(r => r.cookId === cookId);
 }
 
-function getRatingsByListing(listingId) {
-    const ratings = getRatings();
+async function getRatingsByListing(listingId) {
+    const ratings = await getRatings();
     return ratings.filter(r => r.listingId === listingId);
 }
 
-function createRating(ratingData) {
-    const ratings = getRatings();
-    const newRating = {
-        id: 'rating_' + Date.now(),
-        ...ratingData,
-        createdAt: new Date().toISOString()
-    };
-    ratings.push(newRating);
-    setData(DB_KEYS.RATINGS, ratings);
-    return newRating;
+async function createRating(ratingData) {
+    return fetchAPI('/ratings', {
+        method: 'POST',
+        body: JSON.stringify(ratingData)
+    });
 }
 
 // Points system
-function addPoints(userId, points) {
-    const user = getUserById(userId);
-    if (user) {
-        updateUser(userId, { points: user.points + points });
-    }
+async function addPoints(userId, points) {
+    return fetchAPI(`/users/${userId}/points/add`, {
+        method: 'POST',
+        body: JSON.stringify({ points })
+    });
 }
 
-function deductPoints(userId, points) {
-    const user = getUserById(userId);
-    if (user) {
-        updateUser(userId, { points: Math.max(0, user.points - points) });
-    }
+async function deductPoints(userId, points) {
+    return fetchAPI(`/users/${userId}/points/deduct`, {
+        method: 'POST',
+        body: JSON.stringify({ points })
+    });
 }
 
-// Calculate average rating for a cook
-function getAverageRating(cookId) {
-    const ratings = getRatingsByCook(cookId);
+// Statistics
+async function getAverageRating(cookId) {
+    const ratings = await getRatingsByCook(cookId);
     if (ratings.length === 0) return 0;
     const sum = ratings.reduce((acc, r) => acc + r.rating, 0);
     return (sum / ratings.length).toFixed(1);
 }
 
-// Admin statistics
-function getMonthlyPortions() {
-    const listings = getListings();
-    const now = new Date();
-    const oneMonthAgo = new Date(now.setMonth(now.getMonth() - 1));
-    
-    const monthlyListings = listings.filter(l => {
-        const createdAt = new Date(l.createdAt);
-        return createdAt >= oneMonthAgo;
-    });
-
-    const totalPortions = monthlyListings.reduce((acc, l) => {
-        return acc + (l.portions - l.availablePortions);
-    }, 0);
-
-    return totalPortions;
+async function getMonthlyPortions() {
+    return fetchAPI('/statistics/monthly-portions');
 }
 
-function getTopDonor() {
-    const users = getUsers();
-    const cooks = users.filter(u => u.role === 'cook');
-    if (cooks.length === 0) return null;
-
-    const sorted = cooks.sort((a, b) => b.offeredPortions - a.offeredPortions);
-    return sorted[0];
+async function getTopDonor() {
+    return fetchAPI('/statistics/top-donor');
 }
 
-function getTopRatedMeal() {
-    const listings = getListings();
-    const ratings = getRatings();
-    
-    if (ratings.length === 0) return null;
-
-    const listingRatings = {};
-    ratings.forEach(r => {
-        if (!listingRatings[r.listingId]) {
-            listingRatings[r.listingId] = [];
-        }
-        listingRatings[r.listingId].push(r.rating);
-    });
-
-    let topListing = null;
-    let topAvg = 0;
-
-    Object.keys(listingRatings).forEach(listingId => {
-        const avg = listingRatings[listingId].reduce((a, b) => a + b, 0) / listingRatings[listingId].length;
-        if (avg > topAvg) {
-            topAvg = avg;
-            topListing = getListingById(listingId);
-        }
-    });
-
-    return topListing;
+async function getTopRatedMeal() {
+    return fetchAPI('/statistics/top-rated-meal');
 }
 
-// Current user session
+// Current user session (Keep in localStorage for client-side state)
 function setCurrentUser(user) {
-    localStorage.setItem(DB_KEYS.CURRENT_USER, JSON.stringify(user));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
 }
 
 function getCurrentUser() {
-    const user = localStorage.getItem(DB_KEYS.CURRENT_USER);
+    const user = localStorage.getItem(SESSION_KEY);
     return user ? JSON.parse(user) : null;
 }
 
 function clearCurrentUser() {
-    localStorage.removeItem(DB_KEYS.CURRENT_USER);
+    localStorage.removeItem(SESSION_KEY);
 }
-
-// Initialize on load
-initializeDatabase();

@@ -30,7 +30,7 @@ function getPhotoBase64() {
     return img.src && img.src !== window.location.href ? img.src : null;
 }
 
-function showView(viewName) {
+async function showView(viewName) {
     // Hide all views
     const views = document.querySelectorAll('.view');
     views.forEach(v => v.classList.add('hidden'));
@@ -44,22 +44,22 @@ function showView(viewName) {
     // Render content based on view
     switch(viewName) {
         case 'feed':
-            renderFeed();
+            await renderFeed();
             break;
         case 'map':
-            renderMap();
+            await renderMap();
             break;
         case 'my-listings':
-            renderMyListings();
+            await renderMyListings();
             break;
         case 'requests':
-            renderRequests();
+            await renderRequests();
             break;
         case 'profile':
-            renderProfile();
+            await renderProfile();
             break;
         case 'admin':
-            renderAdmin();
+            await renderAdmin();
             break;
     }
 }
@@ -91,256 +91,287 @@ function setRating(value) {
 }
 
 // Feed rendering
-function renderFeed() {
-    const currentUser = getCurrentUser();
-    const { active, inactive } = cleanupExpiredListings();
-    const allListings = [...active, ...inactive];
-    
-    const sortFilter = document.getElementById('sortFilter').value;
-    
-    // Sort listings
-    let sortedListings = [...allListings];
-    if (sortFilter === 'newest') {
-        sortedListings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    } else if (sortFilter === 'distance') {
-        // For demo, just sort by creation date
-        sortedListings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    } else if (sortFilter === 'rating') {
-        sortedListings.sort((a, b) => {
-            const ratingA = getAverageRating(a.cookId);
-            const ratingB = getAverageRating(b.cookId);
-            return ratingB - ratingA;
-        });
-    }
-
-    const feedList = document.getElementById('feedList');
-    feedList.innerHTML = '';
-
-    sortedListings.forEach(listing => {
-        const cook = getUserById(listing.cookId);
-        const avgRating = getAverageRating(listing.cookId);
-        const isInactive = listing.status === 'inactive' || listing.availablePortions === 0;
+async function renderFeed() {
+    try {
+        const currentUser = getCurrentUser();
+        const cleanupResult = await cleanupExpiredListings();
+        const active = cleanupResult?.active || [];
+        const inactive = cleanupResult?.inactive || [];
+        const allListings = [...active, ...inactive];
         
-        // Build location string
-        let locationStr = listing.location;
-        if (listing.address && listing.area) {
-            locationStr = `${listing.address}, ${listing.area}`;
-            if (listing.postalCode) {
-                locationStr += `, ${listing.postalCode}`;
+        const sortFilter = document.getElementById('sortFilter').value;
+        
+        // Sort listings
+        let sortedListings = [...allListings];
+        if (sortFilter === 'newest') {
+            sortedListings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        } else if (sortFilter === 'distance') {
+            // For demo, just sort by creation date
+            sortedListings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        } else if (sortFilter === 'rating') {
+            const ratingsMap = {};
+            for (const l of sortedListings) {
+                if (!(l.cookId in ratingsMap)) {
+                    ratingsMap[l.cookId] = await getAverageRating(l.cookId);
+                }
             }
-            if (listing.location) {
-                locationStr += ` (${listing.location})`;
-            }
+            sortedListings.sort((a, b) => ratingsMap[b.cookId] - ratingsMap[a.cookId]);
         }
-        
-        const card = document.createElement('div');
-        card.className = `listing-card ${isInactive ? 'inactive' : ''}`;
-        
-        card.innerHTML = `
-            <div class="listing-image">${listing.photo ? `<img src="${listing.photo}" alt="${listing.title}" style="width:100%;height:100%;object-fit:cover">` : '🍽️'}</div>
-            <div class="listing-content">
-                <h3 class="listing-title">${listing.title}</h3>
-                <p class="listing-description">${listing.description}</p>
-                <div class="listing-meta">
-                    <span>👨‍🍳 ${cook.username}</span>
-                    <span class="listing-rating">★ ${avgRating}</span>
+
+        const feedList = document.getElementById('feedList');
+        feedList.innerHTML = '';
+
+        for (const listing of sortedListings) {
+            const cook = await getUserById(listing.cookId);
+            const avgRating = await getAverageRating(listing.cookId);
+            const isInactive = listing.status === 'inactive' || listing.availablePortions === 0;
+            
+            // Build location string
+            let locationStr = listing.location;
+            if (listing.address && listing.area) {
+                locationStr = `${listing.address}, ${listing.area}`;
+                if (listing.postalCode) locationStr += `, ${listing.postalCode}`;
+                if (listing.location) locationStr += ` (${listing.location})`;
+            }
+            
+            const card = document.createElement('div');
+            card.className = `listing-card ${isInactive ? 'inactive' : ''}`;
+            
+            card.innerHTML = `
+                <div class="listing-image">${listing.photo ? `<img src="${listing.photo}" alt="${listing.title}" style="width:100%;height:100%;object-fit:cover">` : '🍽️'}</div>
+                <div class="listing-content">
+                    <h3 class="listing-title">${listing.title}</h3>
+                    <p class="listing-description">${listing.description}</p>
+                    <div class="listing-meta">
+                        <span>👨‍🍳 ${cook ? cook.username : 'Άγνωστος'}</span>
+                        <span class="listing-rating">★ ${avgRating}</span>
+                    </div>
+                    <div class="listing-meta">
+                        <span class="listing-portions">${listing.availablePortions}/${listing.portions} μερίδες</span>
+                        <span>📍 ${locationStr}</span>
+                    </div>
+                    <div class="listing-meta">
+                        <span>🕐 ${new Date(listing.pickupTime).toLocaleString('el-GR')}</span>
+                    </div>
+                    ${listing.allergens ? `<div class="listing-meta"><span>⚠️ Αλλεργιογόνα: ${listing.allergens}</span></div>` : ''}
+                    <div class="listing-actions">
+                        <button class="btn-primary" 
+                                onclick="requestPortion('${listing.id}')" 
+                                ${isInactive || currentUser.points < 1 ? 'disabled' : ''}>
+                            ${isInactive ? 'Μη διαθέσιμο' : 'Ζήτηση μερίδας'}
+                        </button>
+                    </div>
                 </div>
-                <div class="listing-meta">
-                    <span class="listing-portions">${listing.availablePortions}/${listing.portions} μερίδες</span>
-                    <span>📍 ${locationStr}</span>
-                </div>
-                <div class="listing-meta">
-                    <span>🕐 ${new Date(listing.pickupTime).toLocaleString('el-GR')}</span>
-                </div>
-                ${listing.allergens ? `<div class="listing-meta"><span>⚠️ Αλλεργιογόνα: ${listing.allergens}</span></div>` : ''}
-                <div class="listing-actions">
-                    <button class="btn-primary" 
-                            onclick="requestPortion('${listing.id}')" 
-                            ${isInactive || currentUser.points < 1 ? 'disabled' : ''}>
-                        ${isInactive ? 'Μη διαθέσιμο' : 'Ζήτηση μερίδας'}
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        feedList.appendChild(card);
-    });
+            `;
+            
+            feedList.appendChild(card);
+        }
+    } catch (error) {
+        console.error('Error rendering feed:', error);
+    }
 }
 
 // Map rendering with Leaflet
 let map = null;
 let markers = [];
 
-function renderMap() {
-    initMainMap();
+async function renderMap() {
+    try {
+        initMainMap();
 
-    const { active } = cleanupExpiredListings();
+        const cleanupResult = await cleanupExpiredListings();
+        const active = cleanupResult?.active || [];
 
-    active.forEach(listing => {
-        const cook = getUserById(listing.cookId);
-        const avgRating = getAverageRating(listing.cookId);
+        active.forEach(async (listing) => {
+            const cook = await getUserById(listing.cookId);
+            const avgRating = await getAverageRating(listing.cookId);
 
-        const lat = listing.lat || (38.2466 + (Math.random() - 0.5) * 0.05);
-        const lng = listing.lng || (21.7344 + (Math.random() - 0.5) * 0.05);
+            const lat = listing.lat || (38.2466 + (Math.random() - 0.5) * 0.05);
+            const lng = listing.lng || (21.7344 + (Math.random() - 0.5) * 0.05);
 
-        let locationStr = listing.location;
-        if (listing.address && listing.area) {
-            locationStr = `${listing.address}, ${listing.area}`;
-            if (listing.postalCode) locationStr += `, ${listing.postalCode}`;
-            if (listing.location) locationStr += ` (${listing.location})`;
-        }
+            let locationStr = listing.location;
+            if (listing.address && listing.area) {
+                locationStr = `${listing.address}, ${listing.area}`;
+                if (listing.postalCode) locationStr += `, ${listing.postalCode}`;
+                if (listing.location) locationStr += ` (${listing.location})`;
+            }
 
-        const marker = L.marker([lat, lng]).addTo(mainMap);
-        marker.bindPopup(`
-            <div class="map-popup">
-                <h3>${listing.title}</h3>
-                <p><strong>Μάγειρας:</strong> ${cook.username}</p>
-                <p><strong>Μερίδες:</strong> ${listing.availablePortions}/${listing.portions}</p>
-                <p><strong>Τοποθεσία:</strong> ${locationStr}</p>
-                <p><strong>Ώρα:</strong> ${new Date(listing.pickupTime).toLocaleString('el-GR')}</p>
-                <p><strong>Βαθμολογία:</strong> ★ ${avgRating}</p>
-                ${listing.allergens ? `<p><strong>⚠️ Αλλεργιογόνα:</strong> ${listing.allergens}</p>` : ''}
-                <button onclick="requestPortion('${listing.id}')" class="btn-primary" style="margin-top:10px;width:100%">Ζήτηση μερίδας</button>
-            </div>
-        `);
-        mainMarkers.push(marker);
-    });
+            const marker = L.marker([lat, lng]).addTo(mainMap);
+            marker.bindPopup(`
+                <div class="map-popup">
+                    <h3>${listing.title}</h3>
+                    <p><strong>Μάγειρας:</strong> ${cook ? cook.username : 'Άγνωστος'}</p>
+                    <p><strong>Μερίδες:</strong> ${listing.availablePortions}/${listing.portions}</p>
+                    <p><strong>Τοποθεσία:</strong> ${locationStr}</p>
+                    <p><strong>Ώρα:</strong> ${new Date(listing.pickupTime).toLocaleString('el-GR')}</p>
+                    <p><strong>Βαθμολογία:</strong> ★ ${avgRating}</p>
+                    ${listing.allergens ? `<p><strong>⚠️ Αλλεργιογόνα:</strong> ${listing.allergens}</p>` : ''}
+                    <button onclick="requestPortion('${listing.id}')" class="btn-primary" style="margin-top:10px;width:100%">Ζήτηση μερίδας</button>
+                </div>
+            `);
+            mainMarkers.push(marker);
+        });
 
-    if (mainMarkers.length > 0) {
-        const group = L.featureGroup(mainMarkers);
-        mainMap.fitBounds(group.getBounds());
+        // We can't guarantee all markers are added before fitBounds runs due to async map 
+        // But Leaflet fitBounds can run as markers are added if needed, or we wait.
+        // For better flow, wait for all.
+        /* if (mainMarkers.length > 0) {
+            const group = L.featureGroup(mainMarkers);
+            mainMap.fitBounds(group.getBounds());
+        } */
+    } catch (error) {
+        console.error('Error rendering map:', error);
     }
 }
 
 // My Listings rendering
-function renderMyListings() {
-    const currentUser = getCurrentUser();
-    const myListings = getListingsByCook(currentUser.id);
-    
-    const listingsGrid = document.getElementById('myListings');
-    listingsGrid.innerHTML = '';
-
-    if (myListings.length === 0) {
-        listingsGrid.innerHTML = '<p>Δεν έχετε δημιουργήσει αγγελίες ακόμα</p>';
-        return;
-    }
-
-    myListings.forEach(listing => {
-        const avgRating = getAverageRating(currentUser.id);
-        const isInactive = listing.status === 'inactive' || listing.availablePortions === 0;
+async function renderMyListings() {
+    try {
+        const currentUser = getCurrentUser();
+        const myListings = await getListingsByCook(currentUser.id);
         
-        // Build location string
-        let locationStr = listing.location;
-        if (listing.address && listing.area) {
-            locationStr = `${listing.address}, ${listing.area}`;
-            if (listing.postalCode) {
-                locationStr += `, ${listing.postalCode}`;
-            }
-            if (listing.location) {
-                locationStr += ` (${listing.location})`;
-            }
+        const listingsGrid = document.getElementById('myListings');
+        listingsGrid.innerHTML = '';
+
+        if (!myListings || myListings.length === 0) {
+            listingsGrid.innerHTML = '<p>Δεν έχετε δημιουργήσει αγγελίες ακόμα</p>';
+            return;
         }
-        
-        const card = document.createElement('div');
-        card.className = `listing-card ${isInactive ? 'inactive' : ''}`;
-        
-        card.innerHTML = `
-            <div class="listing-image">🍽️</div>
-            <div class="listing-content">
-                <h3 class="listing-title">${listing.title}</h3>
-                <p class="listing-description">${listing.description}</p>
-                <div class="listing-meta">
-                    <span class="listing-portions">${listing.availablePortions}/${listing.portions} μερίδες</span>
-                    <span class="listing-rating">★ ${avgRating}</span>
+
+        for (const listing of myListings) {
+            const avgRating = await getAverageRating(currentUser.id);
+            const isInactive = listing.status === 'inactive' || listing.availablePortions === 0;
+            
+            // Build location string
+            let locationStr = listing.location;
+            if (listing.address && listing.area) {
+                locationStr = `${listing.address}, ${listing.area}`;
+                if (listing.postalCode) {
+                    locationStr += `, ${listing.postalCode}`;
+                }
+                if (listing.location) {
+                    locationStr += ` (${listing.location})`;
+                }
+            }
+            
+            const card = document.createElement('div');
+            card.className = `listing-card ${isInactive ? 'inactive' : ''}`;
+            
+            card.innerHTML = `
+                <div class="listing-image">🍽️</div>
+                <div class="listing-content">
+                    <h3 class="listing-title">${listing.title}</h3>
+                    <p class="listing-description">${listing.description}</p>
+                    <div class="listing-meta">
+                        <span class="listing-portions">${listing.availablePortions}/${listing.portions} μερίδες</span>
+                        <span class="listing-rating">★ ${avgRating}</span>
+                    </div>
+                    <div class="listing-meta">
+                        <span>📍 ${locationStr}</span>
+                        <span>🕐 ${new Date(listing.pickupTime).toLocaleString('el-GR')}</span>
+                    </div>
+                    <div class="listing-actions">
+                        <button class="btn-secondary" onclick="handleDeleteListing('${listing.id}')">Διαγραφή</button>
+                    </div>
                 </div>
-                <div class="listing-meta">
-                    <span>📍 ${locationStr}</span>
-                    <span>🕐 ${new Date(listing.pickupTime).toLocaleString('el-GR')}</span>
-                </div>
-                <div class="listing-actions">
-                    <button class="btn-secondary" onclick="deleteListing('${listing.id}')">Διαγραφή</button>
-                </div>
-            </div>
-        `;
-        
-        listingsGrid.appendChild(card);
-    });
+            `;
+            
+            listingsGrid.appendChild(card);
+        }
+    } catch (error) {
+        console.error('Error rendering my listings:', error);
+    }
 }
 
 // Requests rendering
-function renderRequests() {
-    const currentUser = getCurrentUser();
-    const requests = getRequestsByCook(currentUser.id);
-    
-    const requestsList = document.getElementById('requestsList');
-    requestsList.innerHTML = '';
-
-    if (requests.length === 0) {
-        requestsList.innerHTML = '<p>Δεν έχετε αιτήματα ακόμα</p>';
-        return;
-    }
-
-    requests.forEach(request => {
-        const listing = getListingById(request.listingId);
-        const consumer = getUserById(request.consumerId);
+async function renderRequests() {
+    try {
+        const currentUser = getCurrentUser();
+        const requests = await getRequestsByCook(currentUser.id);
         
-        const card = document.createElement('div');
-        card.className = 'request-card';
-        
-        let actionsHTML = '';
-        if (request.status === 'pending') {
-            actionsHTML = `
-                <div class="request-actions">
-                    <button class="btn-approve" onclick="approveRequest('${request.id}')">Αποδοχή</button>
-                    <button class="btn-reject" onclick="rejectRequest('${request.id}')">Απόρριψη</button>
-                </div>
-            `;
-        } else if (request.status === 'approved') {
-            actionsHTML = `
-                <div class="request-actions">
-                    <button class="btn-confirm" onclick="confirmPickup('${request.id}')">Επιβεβαίωση Παραλαβής</button>
-                    <button class="btn-reject" onclick="reportNoShow('${request.id}')">Δεν ήρθε</button>
-                </div>
-            `;
-        } else {
-            actionsHTML = `<p>Κατάσταση: ${request.status}</p>`;
+        const requestsList = document.getElementById('requestsList');
+        requestsList.innerHTML = '';
+
+        if (!requests || requests.length === 0) {
+            requestsList.innerHTML = '<p>Δεν έχετε αιτήματα ακόμα</p>';
+            return;
         }
 
-        card.innerHTML = `
-            <div class="request-header">
-                <h3>${listing.title}</h3>
-                <span>Κατάσταση: ${request.status}</span>
-            </div>
-            <div class="request-info">
-                <span>👤 ${consumer.username}</span>
-                <span>🕐 ${new Date(request.createdAt).toLocaleString('el-GR')}</span>
-            </div>
-            ${actionsHTML}
-        `;
-        
-        requestsList.appendChild(card);
-    });
+        for (const request of requests) {
+            const listing = await getListingById(request.listingId);
+            const consumer = await getUserById(request.consumerId);
+            
+            if (!listing || !consumer) continue;
+
+            const card = document.createElement('div');
+            card.className = 'request-card';
+            
+            let actionsHTML = '';
+            if (request.status === 'pending') {
+                actionsHTML = `
+                    <div class="request-actions">
+                        <button class="btn-approve" onclick="approveRequest('${request.id}')">Αποδοχή</button>
+                        <button class="btn-reject" onclick="rejectRequest('${request.id}')">Απόρριψη</button>
+                    </div>
+                `;
+            } else if (request.status === 'approved') {
+                actionsHTML = `
+                    <div class="request-actions">
+                        <button class="btn-confirm" onclick="confirmPickup('${request.id}')">Επιβεβαίωση Παραλαβής</button>
+                        <button class="btn-reject" onclick="reportNoShow('${request.id}')">Δεν ήρθε</button>
+                    </div>
+                `;
+            } else {
+                actionsHTML = `<p>Κατάσταση: ${request.status}</p>`;
+            }
+
+            card.innerHTML = `
+                <div class="request-header">
+                    <h3>${listing.title}</h3>
+                    <span>Κατάσταση: ${request.status}</span>
+                </div>
+                <div class="request-info">
+                    <span>👤 ${consumer.username}</span>
+                    <span>🕐 ${new Date(request.createdAt).toLocaleString('el-GR')}</span>
+                </div>
+                ${actionsHTML}
+            `;
+            
+            requestsList.appendChild(card);
+        }
+    } catch (error) {
+        console.error('Error rendering requests:', error);
+    }
 }
 
 // Profile rendering
-function renderProfile() {
-    const currentUser = getCurrentUser();
-    
-    document.getElementById('profileName').textContent = currentUser.username;
-    document.getElementById('profileRole').textContent = currentUser.role === 'cook' ? 'Μάγειρας' : currentUser.role === 'admin' ? 'Διαχειριστής' : 'Καταναλωτής';
-    document.getElementById('profilePoints').textContent = currentUser.points;
-    document.getElementById('offeredCount').textContent = currentUser.offeredPortions;
-    document.getElementById('receivedCount').textContent = currentUser.receivedPortions;
-    document.getElementById('avgRating').textContent = getAverageRating(currentUser.id);
+async function renderProfile() {
+    try {
+        const currentUser = getCurrentUser();
+        const avgRating = await getAverageRating(currentUser.id);
+        
+        document.getElementById('profileName').textContent = currentUser.username;
+        document.getElementById('profileRole').textContent = currentUser.role === 'cook' ? 'Μάγειρας' : currentUser.role === 'admin' ? 'Διαχειριστής' : 'Καταναλωτής';
+        document.getElementById('profilePoints').textContent = currentUser.points;
+        document.getElementById('offeredCount').textContent = currentUser.offeredPortions || 0;
+        document.getElementById('receivedCount').textContent = currentUser.receivedPortions || 0;
+        document.getElementById('avgRating').textContent = avgRating;
+    } catch (error) {
+        console.error('Error rendering profile:', error);
+    }
 }
 
 // Admin rendering
-function renderAdmin() {
-    const monthlyPortions = getMonthlyPortions();
-    const topDonor = getTopDonor();
-    const topRatedMeal = getTopRatedMeal();
+async function renderAdmin() {
+    try {
+        const monthlyPortions = await getMonthlyPortions();
+        const topDonor = await getTopDonor();
+        const topRatedMeal = await getTopRatedMeal();
 
-    document.getElementById('monthlyPortions').textContent = monthlyPortions;
-    document.getElementById('topDonor').textContent = topDonor ? topDonor.username : '-';
-    document.getElementById('topRatedMeal').textContent = topRatedMeal ? topRatedMeal.title : '-';
+        document.getElementById('monthlyPortions').textContent = monthlyPortions || '0';
+        document.getElementById('topDonor').textContent = topDonor ? topDonor.username : '-';
+        document.getElementById('topRatedMeal').textContent = topRatedMeal ? topRatedMeal.title : '-';
+    } catch (error) {
+        console.error('Error rendering admin:', error);
+    }
 }

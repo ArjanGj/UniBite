@@ -16,23 +16,28 @@ function showAuthTab(tab) {
     }
 }
 
-function handleLogin(event) {
+async function handleLogin(event) {
     event.preventDefault();
     
     const username = document.getElementById('loginUsername').value;
     const password = document.getElementById('loginPassword').value;
 
-    const user = getUserByUsername(username);
-    
-    if (user && user.password === password) {
-        setCurrentUser(user);
-        showMainApp();
-    } else {
-        alert('Λάθος όνομα χρήστη ή κωδικός');
+    try {
+        const user = await getUserByUsername(username);
+        
+        if (user && user.password === password) {
+            setCurrentUser(user);
+            showMainApp();
+        } else {
+            alert('Λάθος όνομα χρήστη ή κωδικός');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('Υπήρξε πρόβλημα κατά τη σύνδεση.');
     }
 }
 
-function handleRegister(event) {
+async function handleRegister(event) {
     event.preventDefault();
     
     const username = document.getElementById('regUsername').value;
@@ -40,22 +45,27 @@ function handleRegister(event) {
     const password = document.getElementById('regPassword').value;
     const role = document.getElementById('regRole').value;
 
-    // Check if username already exists
-    const existingUser = getUserByUsername(username);
-    if (existingUser) {
-        alert('Το όνομα χρήστη υπάρχει ήδη');
-        return;
+    try {
+        // Check if username already exists
+        const existingUser = await getUserByUsername(username);
+        if (existingUser) {
+            alert('Το όνομα χρήστη υπάρχει ήδη');
+            return;
+        }
+
+        const newUser = await createUser({
+            username,
+            email,
+            password,
+            role
+        });
+
+        setCurrentUser(newUser);
+        showMainApp();
+    } catch (error) {
+        console.error('Registration error:', error);
+        alert('Υπήρξε πρόβλημα κατά την εγγραφή.');
     }
-
-    const newUser = createUser({
-        username,
-        email,
-        password,
-        role
-    });
-
-    setCurrentUser(newUser);
-    showMainApp();
 }
 
 function logout() {
